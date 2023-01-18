@@ -33,7 +33,7 @@ import os
 import platform
 import sys
 from pathlib import Path
-
+import time
 import torch
 
 FILE = Path(__file__).resolve()
@@ -49,7 +49,7 @@ from utils.general import (LOGGER, Profile, check_file, check_img_size, check_im
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device, smart_inference_mode
 
-
+start_time = time.time()
 @smart_inference_mode()
 def run(
         weights=ROOT / 'yolov5s.pt',  # model path or triton URL
@@ -60,12 +60,12 @@ def run(
         iou_thres=0.45,  # NMS IOU threshold
         max_det=1000,  # maximum detections per image
         device='',  # cuda device, i.e. 0 or 0,1,2,3 or cpu
-        view_img=False,  # show results
+        view_img=True,  # show results
         save_txt=False,  # save results to *.txt
         save_conf=False,  # save confidences in --save-txt labels
         save_crop=False,  # save cropped prediction boxes
         nosave=False,  # do not save images/videos
-        classes=None,  # filter by class: --class 0, or --class 0 2 3
+        classes=0,  # filter by class: --class 0, or --class 0 2 3
         agnostic_nms=False,  # class-agnostic NMS
         augment=False,  # augmented inference
         visualize=False,  # visualize features
@@ -73,13 +73,21 @@ def run(
         project=ROOT / 'runs/detect',  # save results to project/name
         name='exp',  # save results to project/name
         exist_ok=False,  # existing project/name ok, do not increment
-        line_thickness=3,  # bounding box thickness (pixels)
+        line_thickness=0,  # bounding box thickness (pixels)
         hide_labels=False,  # hide labels
         hide_conf=False,  # hide confidences
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
         vid_stride=1,  # video frame-rate stride
 ):
+    # Adding logo
+    LOGO = cv2.imread('Tarsyer_Logo_BrandName.png', -1)
+    print(LOGO.shape)
+    LOGO = cv2.resize(LOGO, (200, 200))
+    y1, y2 = 858, 1058
+    x1, x2 = 482, 682
+    alpha_s = LOGO[:, :, 3] / 255.0
+    alpha_l = 1.0 - alpha_s
     source = str(source)
     save_img = not nosave and not source.endswith('.txt')  # save inference images
     is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
@@ -88,7 +96,9 @@ def run(
     screenshot = source.lower().startswith('screen')
     if is_url and is_file:
         source = check_file(source)  # download
-
+    hide_labels = True
+    hide_conf = True
+    line_thickness = 0
     # Directories
     save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
     (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
@@ -150,6 +160,16 @@ def run(
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             imc = im0.copy() if save_crop else im0  # for save_crop
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
+            cv2.rectangle(im0, (0, 730), (700, 1054), (100, 50, 100), -1)
+#            cv2.line(im0, (993, 15), (993, 1065), (0, 0, 255), 3)
+#            cv2.line(im0, (1442, 15), (1442, 1065), (0, 0, 255), 3)
+            end_time = int(time.time() - start_time)
+            person_count = 0
+#            cv2.line(im0, (993,15), (1442,15), (0, 0, 255), 3)
+#            cv2.line(im0, (993, 1065), (1442, 1065), (0, 0, 255), 3)
+            cv2.putText(im0, "Section: 3", (138, 133), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 2)
+
+
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
@@ -158,8 +178,9 @@ def run(
                 for c in det[:, 5].unique():
                     n = (det[:, 5] == c).sum()  # detections per class
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
-
-                # Write results
+                    cv2.putText(im0, "Section: 3", (40, 808), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2)
+                    cv2.putText(im0, "Time = " + str(end_time), (40, 1020), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2)
+                 # Write results
                 for *xyxy, conf, cls in reversed(det):
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
@@ -170,10 +191,26 @@ def run(
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        annotator.box_label(xyxy, label, color=colors(c, True))
+                       # annotator.box_label(xyxy, label, color=colors(c, True))	
+                        centroid = ((((int(xyxy[0]))+(int(xyxy[2])))/2), (((int(xyxy[1]))+(int(xyxy[3])))/2))
+                        #print(centroid)
+                        # for video: test3
+                        #if int(centroid[0])>993 and int(centroid[0])<1442:
+                        #    person_count+=1
+                        # for video: test4
+                        #if int(centroid[0])>208 and int(centroid[0])<657:
+                        #    person_count+=1
+                        # for video: test2
+                        if int(centroid[0])>335 and int(centroid[0])<929 and int(centroid[1])<570:
+                            person_count+=1
+                       # cv2.circle(im0, (int(centroid[0]), int(centroid[1])), 4, (0, 0, 255), -1)
+                       # print(int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]))
                     if save_crop:
                         save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
-
+            cv2.putText(im0, 'Count = ' + str(person_count), (40, 940), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2)
+            for c in range(0, 3):
+                im0[y1:y2, x1:x2, c] = (alpha_s * LOGO[:, :, c] + alpha_l * im0[y1:y2, x1:x2, c]) 
+#            view_img = True
             # Stream results
             im0 = annotator.result()
             if view_img:
